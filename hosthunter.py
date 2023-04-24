@@ -66,7 +66,10 @@ pattern=re.compile(regx)
 socket.setdefaulttimeout(3)
 
 ## Argument Parser
-parser = argparse.ArgumentParser(description='|<--- HostHunter v1.5 - Help Page --->|',epilog="Author: " + __author__)
+parser = argparse.ArgumentParser(
+    description='|<--- HostHunter v1.5 - Help Page --->|',
+    epilog=f"Author: {__author__}",
+)
 parser.add_argument("-b","--bing",help="Use Bing.com search engine to discover more hostnames associated with the target IP addreses.",action="store_true",default=False)
 parser.add_argument("-f","--format",help="Choose between CSV and TXT output file formats.", default="csv")
 parser.add_argument("-o","--output", help="Sets the path of the output file.", type=str,default="vhosts.csv")
@@ -78,7 +81,7 @@ args = parser.parse_args()
 
 
 def init_checks(args):
-    if args.format.lower() != "txt" and args.format.lower() != "csv":
+    if args.format.lower() not in ["txt", "csv"]:
         print ("\nUnrecognised file format argument. Choose between 'txt' or 'csv' output file formats.\n")
         print("Example Usage: python3 hosthunter.py targets.txt -f txt ")
         exit()
@@ -98,20 +101,18 @@ def init_checks(args):
         exit()
 
     if os.path.exists(args.output):
-        print("\n[?] {} file already exists, would you like to overwrite it?".format(args.output))
+        print(
+            f"\n[?] {args.output} file already exists, would you like to overwrite it?"
+        )
         answer = input("Answer with [Y]es or [N]o : ").lower()
-        if (answer == 'no' or answer == 'n'):
+        if answer in ['no', 'n']:
             exit()
 
     if args.format.lower() == "csv":
         vhostsf.write("\"" + "IP Address" + "\",\"" + "Port/Protocol" + "\",\"" + "Domains" +  "\",\""
         + "Operating System" + "\",\"" + "OS Version" + "\",\"" + "Notes" +  "\"\n") #vhosts.csv Header
 
-if args.target:
-    targets=[]
-    targets.append(args.target)
-else:
-    targets = open(args.targets,"rt") # Read File
+targets = [args.target] if args.target else open(args.targets,"rt")
 vhostsf = open(args.output, "wt") # Write File
 appsf = open("webapps.txt", "wt") # Write File
 
@@ -127,7 +128,7 @@ def display_banner():
         " |__/  |__/ \______/ |_______/    \___/  |__/  |__/ \______/ |__/  |__/   \___/   \_______/|__/  " + __version__ + "\n"
     )
 
-    print ("%s" % banner)
+    print(f"{banner}")
     print ("\n" ,"HostHunter: ", __version__)
     print (" Author : ", __author__)
     print (" Twitter:  @superhedgy")
@@ -144,10 +145,7 @@ def take_screenshot(IP,port):
     source=default='<html xmlns="http://www.w3.org/1999/xhtml"><head></head><body></body></html>'
     sleep(0.5) # Delay
 
-    if port == "443":
-        url="https://" + IP
-    else:
-        url="http://" + IP + ':' + port
+    url = f"https://{IP}" if port == "443" else f"http://{IP}:{port}"
     ##    print ("[Debug] Navigating to: ",url) # Debug Functionality
     try:
         driver.get(url)
@@ -157,9 +155,9 @@ def take_screenshot(IP,port):
         pass
     source=driver.page_source
     # print ("[Debug] source value: ",driver.page_source) # Debug Functionality
-    if not ("not found" in source) and not (source=="") and not (source==default):
+    if "not found" not in source and source != "" and source != default:
         try:
-            driver.save_screenshot(sc_path+"/"+IP+"_"+port+".png")
+            driver.save_screenshot(f"{sc_path}/{IP}_{port}.png")
         except:
             pass
         finally:
@@ -167,14 +165,14 @@ def take_screenshot(IP,port):
             driver.get("about:blank")
 
 def validate(targ):
-    if not bool(re.match(pattern_v4,targ.address)):
-        if bool(re.match(pattern_v6,targ.address)) == True:
-            targ.ipv6 = True
-        else:
-            print ("\n\"",targ.address,"\" is not a valid IPv4 or IPv6 address.")
-            return False
-    else:
+    if bool(re.match(pattern_v4,targ.address)):
         True
+
+    elif bool(re.match(pattern_v6,targ.address)):
+        targ.ipv6 = True
+    else:
+        print ("\n\"",targ.address,"\" is not a valid IPv4 or IPv6 address.")
+        return False
 
 # BingIT
 def bingIT(hostx):
@@ -190,9 +188,7 @@ def bingIT(hostx):
             hostx.apps.append(item)
             host = re.sub("(http(s)?://)","",item)
             host2 = re.sub("/(.)*","",host)
-            if (host2=="") or (host2 in hostx.hname):
-                pass
-            else:
+            if host2 != "" and host2 not in hostx.hname:
                 hostx.hname.append(host2)
     except:
     #except (urllib3.exceptions.ReadTimeoutError,requests.ConnectionError,urllib3.connection.ConnectionError,urllib3.exceptions.MaxRetryError,urllib3.exceptions.ConnectTimeoutError,urllib3.exceptions.TimeoutError,socket.error,socket.timeout) as e:
@@ -208,9 +204,7 @@ def sslGrabber(hostx,port):
         cert_hostname=x509.get_subject().CN
         # Add New HostNames to List
         for host in cert_hostname.split('\n'):
-            if (host=="") or (host in hostx.hname):
-                pass
-            else:
+            if host != "" and host not in hostx.hname:
                 hostx.hname.append(host)
     except (urllib3.exceptions.ReadTimeoutError,requests.ConnectionError,urllib3.connection.ConnectionError,urllib3.exceptions.MaxRetryError,urllib3.exceptions.ConnectTimeoutError,urllib3.exceptions.TimeoutError,socket.error,socket.timeout) as e:
         pass
@@ -219,15 +213,14 @@ def sslGrabber(hostx,port):
 def queryAPI(url,hostx):
     try:
         r2 = requests.get(url+hostx.address).text
-        if (r2.find("No DNS A records found")==-1) and (r2.find("API count exceeded")==-1 and r2.find("error")==-1):
+        if (
+            "No DNS A records found" not in r2
+            and "API count exceeded" not in r2
+            and "error" not in r2
+        ):
             for host in r2.split('\n'):
-                if (host=="") or (host in hostx.hname):
-                    pass
-                else:
+                if host != "" and host not in hostx.hname:
                     hostx.hname.append(host)
-        # Add API count exceed detection
-        else:
-            pass
     except (requests.exceptions.ConnectionError,urllib3.connection.ConnectionError,urllib3.exceptions.ConnectTimeoutError,urllib3.exceptions.MaxRetryError,urllib3.exceptions.TimeoutError,socket.error,socket.timeout) as e:
         print ("[*] Error: connecting with HackerTarget.com API")
     finally:
@@ -315,9 +308,15 @@ def main(argc):
     print ("\n" + "|" + "-" * 95 + "|", end = "\n\n")
     print ("  Reconnaissance Completed!", end = "\n\n")
     if counter==0:
-        print ("  0 hostname was discovered in %s sec" % (round(time() - start_time,2)), end = "\n\n")
+        print(
+            f"  0 hostname was discovered in {round(time() - start_time, 2)} sec",
+            end="\n\n",
+        )
     else:
-        print ("  %s hostnames were discovered in %s sec" % (counter,round(time() - start_time,2)), end = "\n\n")
+        print(
+            f"  {counter} hostnames were discovered in {round(time() - start_time, 2)} sec",
+            end="\n\n",
+        )
     print ("|" + "-" * 95 + "|")
 #End of Main Function
 
@@ -333,7 +332,7 @@ if __name__ == "__main__":
         driver.set_page_load_timeout(12)
         if not os.path.exists(sc_path):
             os.makedirs(sc_path)
-        print ("    Screenshots saved at: ",os.getcwd()+ "/" +sc_path)
+        print("    Screenshots saved at: ", f"{os.getcwd()}/{sc_path}")
         print ("|" + "-" * 95 + "|", end = "\n\n")
 
     main(sys.argv) # Main Function
